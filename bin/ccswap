@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="0.1.0"
+CCSWAP_DIR="$HOME/.ccswap"
+CONFIG_FILE="$CCSWAP_DIR/config.json"
+
+show_help() {
+    cat << EOF
+ccswap - Claude Code Account Manager
+
+Usage:
+    ccswap init              Initialize ccswap (creates 'main' linked to ~/.claude)
+    ccswap add <name>        Create a new account
+    ccswap new <name>        Alias for add
+    ccswap remove <name>     Remove an account (cannot remove main)
+    ccswap use <name>        Switch to an account
+    ccswap list              List all accounts
+    ccswap --help            Show this help
+    ccswap --version         Show version
+
+Examples:
+    ccswap init              # First-time setup (requires ~/.claude to exist)
+    ccswap add work          # Create 'work' account
+    ccswap use work          # Switch to 'work' account
+    ccswap list              # Show all accounts
+
+EOF
+}
+
+SHARED_DIRS=("skills" "commands" "plugins" "agents")
+
+check_initialized() {
+    if [[ ! -d "$CCSWAP_DIR" ]]; then
+        echo "Error: ccswap not initialized. Run 'ccswap init'."
+        exit 1
+    fi
+}
+
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        echo "Error: jq is required but not installed."
+        echo "Install with: brew install jq"
+        exit 1
+    fi
+}
+
+check_claude_exists() {
+    if [[ ! -d "$HOME/.claude" ]]; then
+        echo "Error: ~/.claude not found."
+        echo "Please run Claude Code at least once before initializing ccswap."
+        exit 1
+    fi
+}
+
+do_init() {
+    check_jq
+    check_claude_exists
+
+    if [[ -d "$CCSWAP_DIR" ]]; then
+        echo "Error: ~/.ccswap already exists. Remove it first to reinitialize."
+        exit 1
+    fi
+
+    echo "Initializing ccswap..."
+
+    # Create directory structure (no shared/ folder)
+    mkdir -p "$CCSWAP_DIR/bin"
+    mkdir -p "$CCSWAP_DIR/accounts"
+
+    # Create main account as symlink to ~/.claude
+    ln -s "$HOME/.claude" "$CCSWAP_DIR/accounts/main"
+
+    # Ensure shared directories exist in ~/.claude
+    for dir in "${SHARED_DIRS[@]}"; do
+        mkdir -p "$HOME/.claude/$dir"
+    done
+
+    # Initialize config with main as active
+    echo '{"active": "main", "accounts": ["main"]}' > "$CONFIG_FILE"
+
+    # Copy scripts to bin
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cp "$SCRIPT_DIR/ccswap" "$CCSWAP_DIR/bin/ccswap"
+    cp "$SCRIPT_DIR/ccs" "$CCSWAP_DIR/bin/ccs"
+    chmod +x "$CCSWAP_DIR/bin/ccswap" "$CCSWAP_DIR/bin/ccs"
+
+    echo ""
+    echo "ccswap initialized!"
+    echo "Created 'main' account linked to ~/.claude"
+    echo ""
+    echo "Add to your shell profile (~/.zshrc or ~/.bashrc):"
+    echo "    export PATH=\"\$HOME/.ccswap/bin:\$PATH\""
+    echo ""
+    echo "Then restart your shell or run: source ~/.zshrc"
+}
+
+do_list() {
+    check_initialized
+    check_jq
+
+    local active
+    active=$(jq -r '.active // ""' "$CONFIG_FILE")
+
+    local accounts
+    accounts=$(jq -r '.accounts[]' "$CONFIG_FILE")
+
+    if [[ -z "$accounts" ]]; then
+        echo "No accounts found. Run 'ccswap add <name>' to create one."
+        exit 0
+    fi
+
+    while IFS= read -r account; do
+        if [[ "$account" == "$active" ]]; then
+            echo "* $account"
+        else
+            echo "  $account"
+        fi
+    done <<< "$accounts"
+}
+
+validate_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "Error: Account name must be alphanumeric (dashes and underscores allowed)."
+        exit 1
+    fi
+}
+
+is_reserved_name() {
+    local name="$1"
+    if [[ "$name" == "main" ]]; then
+        echo "Error: 'main' is a reserved account name."
+        exit 1
+    fi
+}
+
+account_exists() {
+    local name="$1"
+    jq -e --arg name "$name" '.accounts | index($name) != null' "$CONFIG_FILE" > /dev/null 2>&1
+}
+
+do_add() {
+    local name="$1"
+    check_initialized
+    check_jq
+    validate_name "$name"
+    is_reserved_name "$name"
+
+    if account_exists "$name"; then
+        echo "Error: Account '$name' already exists."
+        exit 1
+    fi
+
+    local account_dir="$CCSWAP_DIR/accounts/$name"
+
+    echo "Creating account '$name'..."
+
+    mkdir -p "$account_dir"
+
+    # Create symlinks to main's shared dirs
+    for dir in "${SHARED_DIRS[@]}"; do
+        ln -sf "../main/$dir" "$account_dir/$dir"
+    done
+
+    # Prompt to copy settings from main
+    read -p "Copy settings from main account? (y/N): " copy_settings
+    if [[ "$copy_settings" =~ ^[Yy] ]]; then
+        cp "$CCSWAP_DIR/accounts/main/settings.json" "$account_dir/settings.json"
+        echo "Copied settings from main account."
+    else
+        # Create default settings.json
+        cat > "$account_dir/settings.json" << 'SETTINGS'
+{
+  "permissions": {
+    "allow": [],
+    "defaultMode": "default"
+  }
+}
+SETTINGS
+    fi
+
+    # Update config
+    jq --arg name "$name" '.accounts += [$name]' "$CONFIG_FILE" > "$CONFIG_FILE.tmp"
+    mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
+    echo "Created account '$name'."
+    echo ""
+    echo "To use this account:"
+    echo "    ccswap use $name    # Set as active"
+    echo "    ccs                 # Start Claude"
+}
+
+do_remove() {
+    local name="$1"
+    check_initialized
+    check_jq
+
+    if [[ "$name" == "main" ]]; then
+        echo "Error: Cannot remove the main account."
+        exit 1
+    fi
+
+    if ! account_exists "$name"; then
+        echo "Error: Account '$name' not found."
+        exit 1
+    fi
+
+    local active
+    active=$(jq -r '.active // ""' "$CONFIG_FILE")
+
+    if [[ "$name" == "$active" ]]; then
+        echo "Error: Cannot remove active account. Switch to another account first."
+        exit 1
+    fi
+
+    read -p "Remove account '$name'? This deletes all history, projects, and settings. (y/n): " confirm
+    if [[ ! "$confirm" =~ ^[Yy] ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+
+    rm -rf "$CCSWAP_DIR/accounts/$name"
+
+    jq --arg name "$name" '.accounts -= [$name]' "$CONFIG_FILE" > "$CONFIG_FILE.tmp"
+    mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
+    echo "Removed account '$name'."
+}
+
+do_switch() {
+    local name="$1"
+    check_initialized
+    check_jq
+
+    if ! account_exists "$name"; then
+        echo "Error: Account '$name' not found."
+        echo "Run 'ccswap add $name' to create it, or 'ccswap list' to see available accounts."
+        exit 1
+    fi
+
+    local active
+    active=$(jq -r '.active // ""' "$CONFIG_FILE")
+
+    if [[ "$name" == "$active" ]]; then
+        echo "Already on '$name'"
+        exit 0
+    fi
+
+    jq --arg name "$name" '.active = $name' "$CONFIG_FILE" > "$CONFIG_FILE.tmp"
+    mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
+    echo "Switched to '$name'"
+}
+
+# Main argument parsing
+case "${1:-}" in
+    --help|-h)
+        show_help
+        exit 0
+        ;;
+    --version|-v)
+        echo "ccswap $VERSION"
+        exit 0
+        ;;
+    "")
+        show_help
+        exit 1
+        ;;
+    init)
+        do_init
+        ;;
+    list)
+        do_list
+        ;;
+    add|new)
+        if [[ -z "${2:-}" ]]; then
+            echo "Error: Account name required."
+            echo "Usage: ccswap add <name>"
+            exit 1
+        fi
+        do_add "$2"
+        ;;
+    remove)
+        if [[ -z "${2:-}" ]]; then
+            echo "Error: Account name required."
+            echo "Usage: ccswap remove <name>"
+            exit 1
+        fi
+        do_remove "$2"
+        ;;
+    use)
+        if [[ -z "${2:-}" ]]; then
+            echo "Error: Account name required."
+            echo "Usage: ccswap use <name>"
+            exit 1
+        fi
+        do_switch "$2"
+        ;;
+    *)
+        echo "Error: Unknown command '$1'"
+        echo "Run 'ccswap --help' for usage."
+        exit 1
+        ;;
+esac

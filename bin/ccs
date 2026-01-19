@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CCSWAP_DIR="$HOME/.ccswap"
+CONFIG_FILE="$CCSWAP_DIR/config.json"
+
+# Check initialized
+if [[ ! -d "$CCSWAP_DIR" ]]; then
+    echo "Error: ccswap not initialized. Run 'ccswap init'."
+    exit 1
+fi
+
+# Check jq
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is required but not installed."
+    echo "Install with: brew install jq"
+    exit 1
+fi
+
+# Get active account
+active=$(jq -r '.active // ""' "$CONFIG_FILE")
+
+if [[ -z "$active" || "$active" == "null" ]]; then
+    echo "Error: No active account set."
+    echo "Run 'ccswap <account>' to set one, or 'ccswap list' to see available accounts."
+    exit 1
+fi
+
+account_dir="$CCSWAP_DIR/accounts/$active"
+
+if [[ ! -d "$account_dir" ]]; then
+    echo "Error: Account directory not found: $account_dir"
+    exit 1
+fi
+
+# Launch claude with the account's config directory
+export CLAUDE_CONFIG_DIR="$account_dir"
+exec claude "$@"
