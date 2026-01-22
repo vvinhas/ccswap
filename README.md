@@ -7,30 +7,26 @@ A CLI tool for managing multiple Claude Code accounts with shared customizations
 Claude Code stores configuration, history, and customizations in `~/.claude`. If you use Claude Code with multiple Anthropic accounts (e.g., personal and work), you need separate configurations for each. ccswap lets you:
 
 - **Switch accounts instantly** - No re-authentication needed
-- **Share customizations** - Skills, commands, agents, and plugins work across all accounts
+- **Share customizations** - Skills, commands, and plugins work across all accounts
 - **Isolate data** - Each account has its own history, projects, and settings
 
 ## Requirements
 
 - macOS or Linux
 - [jq](https://jqlang.github.io/jq/) - JSON processor
-- Claude Code CLI installed (run it at least once before using ccswap)
+- Claude Code CLI installed
 
-Install jq:
+Install jq on macOS:
 ```bash
-# macOS
 brew install jq
-
-# Ubuntu/Debian
-sudo apt install jq
 ```
 
 ## Installation
 
-### Option 1: Quick Install
+### Quick Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vvinhas/ccswap/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yourusername/ccswap/main/scripts/install.sh | bash
 ```
 
 Then add to your shell profile (`~/.zshrc` or `~/.bashrc`):
@@ -44,10 +40,10 @@ Reload your shell:
 source ~/.zshrc  # or source ~/.bashrc
 ```
 
-### Option 2: Clone Repository
+### Alternative: Clone Repository
 
 ```bash
-git clone https://github.com/vvinhas/ccswap.git
+git clone https://github.com/yourusername/ccswap.git
 cd ccswap
 ./bin/ccswap init
 ```
@@ -57,15 +53,13 @@ Then add `~/.ccswap/bin` to your PATH as shown above.
 ## Quick Start
 
 ```bash
-# Initialize (links your existing ~/.claude as "main" account)
-ccswap init
-
-# Create additional accounts
+# Create accounts
 ccswap add work
+ccswap add personal
 
 # Switch between accounts
-ccswap use work    # Switch to work account
-ccswap use main    # Switch back to main
+ccswap work      # Switch to work account
+ccswap personal  # Switch to personal account
 
 # List all accounts (* marks active)
 ccswap list
@@ -74,26 +68,26 @@ ccswap list
 ccs
 ```
 
+If you have an existing `~/.claude` directory, run `ccswap init` to import it as an account.
+
 ## Usage
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `ccswap init` | Initialize ccswap (links ~/.claude as "main") |
+| `ccswap init` | Initialize ccswap (first-time setup) |
 | `ccswap add <name>` | Create a new account |
 | `ccswap new <name>` | Alias for add |
-| `ccswap use <name>` | Switch to an account |
-| `ccswap remove <name>` | Remove an account (cannot remove main) |
+| `ccswap remove <name>` | Remove an account |
+| `ccswap <name>` | Switch to an account |
 | `ccswap list` | List all accounts |
 | `ccswap --help` | Show help |
 | `ccswap --version` | Show version |
-| `ccs` | Launch Claude with active account |
-| `ccs -fa <name>` | Launch Claude with specified account (one-time) |
 
 ### Launching Claude
 
-Use `ccs` (Claude Code Session) instead of `claude` to launch Claude Code with your active account:
+Use `ccs` instead of `claude` to launch Claude Code with your active account:
 
 ```bash
 ccs                    # Start Claude Code
@@ -101,17 +95,15 @@ ccs --help             # Pass arguments to claude
 ccs -p "explain this"  # Use with any claude flags
 ```
 
-### One-Time Account Override
+### Optional: Replace `claude` with `ccs`
 
-Use `--force-account` (or `-fa`) to run Claude with a specific account without switching:
+If you want to use `claude` directly with ccswap, add this alias to your shell profile (`~/.zshrc` or `~/.bashrc`):
 
 ```bash
-ccs -fa personal              # Run with 'personal' account (once)
-ccs --force-account work      # Run with 'work' account (once)
-ccs -fa work --resume         # Combine with other claude flags
+alias claude="ccs"
 ```
 
-This doesn't change your active account—it's just for that session.
+After reloading your shell (`source ~/.zshrc`), running `claude` will automatically use your active ccswap account.
 
 ## How It Works
 
@@ -123,23 +115,28 @@ This doesn't change your active account—it's just for that session.
 ├── bin/
 │   ├── ccswap            # Account management script
 │   └── ccs               # Claude launcher
-└── accounts/
-    ├── main -> ~/.claude # Your original config (symlink)
-    └── work/             # Additional account
-        ├── settings.json
-        ├── projects/
-        ├── skills -> ../main/skills
-        ├── commands -> ../main/commands
-        ├── agents -> ../main/agents
-        └── plugins -> ../main/plugins
+├── accounts/
+│   ├── work/             # Work account config
+│   │   ├── settings.json
+│   │   ├── projects/
+│   │   ├── skills -> ../../shared/skills
+│   │   └── ...
+│   └── personal/         # Personal account config
+│       ├── settings.json
+│       ├── projects/
+│       ├── skills -> ../../shared/skills
+│       └── ...
+└── shared/
+    ├── skills/           # Shared across all accounts
+    ├── commands/         # Shared across all accounts
+    └── plugins/          # Shared across all accounts
 ```
 
 ### Shared vs Account-Specific
 
-**Shared** (symlinked to main account):
+**Shared** (symlinked across accounts):
 - `skills/` - Custom skills
 - `commands/` - Custom commands
-- `agents/` - Custom agents
 - `plugins/` - Installed plugins
 
 **Account-Specific** (isolated per account):
@@ -157,26 +154,48 @@ This doesn't change your active account—it's just for that session.
 CLAUDE_CONFIG_DIR=~/.ccswap/accounts/work claude
 ```
 
+## Importing Existing Configuration
+
+During `ccswap init`, if `~/.claude` exists, you'll be prompted to import it:
+
+```
+Found existing ~/.claude. Import as account? (y/n): y
+Account name [default]: personal
+Importing ~/.claude as 'personal'...
+Imported and set 'personal' as active account.
+```
+
+This copies your existing configuration and sets up shared resource symlinks.
+
 ## Troubleshooting
 
 ### "jq is required but not installed"
 
-Install jq using the commands in the Requirements section above.
-
-### "~/.claude not found"
-
-Run Claude Code at least once before initializing ccswap:
+Install jq:
 ```bash
-claude --help
+# macOS
+brew install jq
+
+# Ubuntu/Debian
+sudo apt install jq
+
+# Fedora
+sudo dnf install jq
+```
+
+### "ccswap not initialized"
+
+Run the init command:
+```bash
 ccswap init
 ```
 
-### "Cannot remove the main account"
+### "Cannot remove active account"
 
-The main account is your original `~/.claude` and cannot be removed. You can remove other accounts by switching away first:
+Switch to another account first:
 ```bash
-ccswap use main
-ccswap remove work
+ccswap other-account
+ccswap remove account-to-delete
 ```
 
 ### Commands not found after installation

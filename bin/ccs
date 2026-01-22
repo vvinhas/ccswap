@@ -67,4 +67,4 @@ fi
 
 # Launch claude with the account's config directory
 export CLAUDE_CONFIG_DIR="$account_dir"
-exec claude "${claude_args[@]+"${claude_args[@]}"}"
+exec command claude "${claude_args[@]+"${claude_args[@]}"}"
