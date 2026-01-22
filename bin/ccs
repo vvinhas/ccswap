@@ -17,16 +17,48 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Get active account
-active=$(jq -r '.active // ""' "$CONFIG_FILE")
+# Parse --force-account / -fa flag
+force_account=""
+claude_args=()
 
-if [[ -z "$active" || "$active" == "null" ]]; then
-    echo "Error: No active account set."
-    echo "Run 'ccswap <account>' to set one, or 'ccswap list' to see available accounts."
-    exit 1
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force-account|-fa)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --force-account requires an account name."
+                exit 1
+            fi
+            force_account="$2"
+            shift 2
+            ;;
+        *)
+            claude_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Determine which account to use
+if [[ -n "$force_account" ]]; then
+    # Verify the forced account exists
+    if ! jq -e --arg name "$force_account" '.accounts | index($name) != null' "$CONFIG_FILE" > /dev/null 2>&1; then
+        echo "Error: Account '$force_account' not found."
+        echo "Run 'ccswap list' to see available accounts."
+        exit 1
+    fi
+    account="$force_account"
+else
+    # Get active account
+    account=$(jq -r '.active // ""' "$CONFIG_FILE")
+
+    if [[ -z "$account" || "$account" == "null" ]]; then
+        echo "Error: No active account set."
+        echo "Run 'ccswap use <account>' to set one, or 'ccswap list' to see available accounts."
+        exit 1
+    fi
 fi
 
-account_dir="$CCSWAP_DIR/accounts/$active"
+account_dir="$CCSWAP_DIR/accounts/$account"
 
 if [[ ! -d "$account_dir" ]]; then
     echo "Error: Account directory not found: $account_dir"
@@ -35,4 +67,4 @@ fi
 
 # Launch claude with the account's config directory
 export CLAUDE_CONFIG_DIR="$account_dir"
-exec claude "$@"
+exec claude "${claude_args[@]+"${claude_args[@]}"}"

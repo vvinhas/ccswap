@@ -88,6 +88,8 @@ ccs
 | `ccswap list` | List all accounts |
 | `ccswap --help` | Show help |
 | `ccswap --version` | Show version |
+| `ccs` | Launch Claude with active account |
+| `ccs -fa <name>` | Launch Claude with specified account (one-time) |
 
 ### Launching Claude
 
@@ -98,6 +100,18 @@ ccs                    # Start Claude Code
 ccs --help             # Pass arguments to claude
 ccs -p "explain this"  # Use with any claude flags
 ```
+
+### One-Time Account Override
+
+Use `--force-account` (or `-fa`) to run Claude with a specific account without switching:
+
+```bash
+ccs -fa personal              # Run with 'personal' account (once)
+ccs --force-account work      # Run with 'work' account (once)
+ccs -fa work --resume         # Combine with other claude flags
+```
+
+This doesn't change your active account—it's just for that session.
 
 ## How It Works
 
