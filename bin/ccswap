@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.1.1"
+VERSION="0.1.2"
 CCSWAP_DIR="$HOME/.ccswap"
 CONFIG_FILE="$CCSWAP_DIR/config.json"
 
@@ -172,10 +172,6 @@ do_add() {
     read -p "Link settings from main account? (y/N): " link_settings
     if [[ "$link_settings" =~ ^[Yy] ]]; then
         ln -sf "../main/settings.json" "$account_dir/settings.json"
-        # Symlink .claude.json if it exists in main
-        if [[ -f "$CCSWAP_DIR/accounts/main/.claude.json" ]]; then
-            ln -sf "../main/.claude.json" "$account_dir/.claude.json"
-        fi
         echo "Linked settings from main account."
     else
         # Create default settings.json

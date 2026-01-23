@@ -53,13 +53,16 @@ Then add `~/.ccswap/bin` to your PATH as shown above.
 ## Quick Start
 
 ```bash
+# Initialize (requires ~/.claude to exist)
+ccswap init
+
 # Create accounts
 ccswap add work
 ccswap add personal
 
 # Switch between accounts
-ccswap work      # Switch to work account
-ccswap personal  # Switch to personal account
+ccswap use work      # Switch to work account
+ccswap use personal  # Switch to personal account
 
 # List all accounts (* marks active)
 ccswap list
@@ -68,7 +71,7 @@ ccswap list
 ccs
 ```
 
-If you have an existing `~/.claude` directory, run `ccswap init` to import it as an account.
+When you first run `ccs` with a new account, Claude will prompt you to authenticate. This creates the account's `.claude.json` with your OAuth credentials.
 
 ## Usage
 
@@ -80,7 +83,7 @@ If you have an existing `~/.claude` directory, run `ccswap init` to import it as
 | `ccswap add <name>` | Create a new account |
 | `ccswap new <name>` | Alias for add |
 | `ccswap remove <name>` | Remove an account |
-| `ccswap <name>` | Switch to an account |
+| `ccswap use <name>` | Switch to an account |
 | `ccswap list` | List all accounts |
 | `ccswap --help` | Show help |
 | `ccswap --version` | Show version |
@@ -115,32 +118,33 @@ After reloading your shell (`source ~/.zshrc`), running `claude` will automatica
 ├── bin/
 │   ├── ccswap            # Account management script
 │   └── ccs               # Claude launcher
-├── accounts/
-│   ├── work/             # Work account config
-│   │   ├── settings.json
-│   │   ├── projects/
-│   │   ├── skills -> ../../shared/skills
-│   │   └── ...
-│   └── personal/         # Personal account config
-│       ├── settings.json
-│       ├── projects/
-│       ├── skills -> ../../shared/skills
-│       └── ...
-└── shared/
-    ├── skills/           # Shared across all accounts
-    ├── commands/         # Shared across all accounts
-    └── plugins/          # Shared across all accounts
+└── accounts/
+    ├── main -> ~/.claude # Main account (symlink to original config)
+    ├── work/             # Work account config
+    │   ├── .claude.json  # OAuth credentials (created on first login)
+    │   ├── settings.json
+    │   ├── projects/
+    │   ├── skills -> ../main/skills
+    │   └── ...
+    └── personal/         # Personal account config
+        ├── .claude.json  # OAuth credentials (created on first login)
+        ├── settings.json
+        ├── projects/
+        ├── skills -> ../main/skills
+        └── ...
 ```
 
 ### Shared vs Account-Specific
 
-**Shared** (symlinked across accounts):
+**Shared** (symlinked to main account):
 - `skills/` - Custom skills
 - `commands/` - Custom commands
 - `plugins/` - Installed plugins
+- `agents/` - Custom agents
 
 **Account-Specific** (isolated per account):
-- `settings.json` - Permissions and preferences
+- `.claude.json` - OAuth credentials (created fresh on first login)
+- `settings.json` - Permissions and preferences (optionally linked to main)
 - `projects/` - Project memory
 - `todos/` - Task lists
 - `cache/` - Cached data
@@ -154,18 +158,14 @@ After reloading your shell (`source ~/.zshrc`), running `claude` will automatica
 CLAUDE_CONFIG_DIR=~/.ccswap/accounts/work claude
 ```
 
-## Importing Existing Configuration
+## How Main Account Works
 
-During `ccswap init`, if `~/.claude` exists, you'll be prompted to import it:
+When you run `ccswap init`, your existing `~/.claude` directory becomes the "main" account via symlink. This preserves your current configuration and makes shared resources (skills, commands, plugins) available to all accounts.
 
-```
-Found existing ~/.claude. Import as account? (y/n): y
-Account name [default]: personal
-Importing ~/.claude as 'personal'...
-Imported and set 'personal' as active account.
-```
-
-This copies your existing configuration and sets up shared resource symlinks.
+New accounts created with `ccswap add <name>` get:
+- Symlinks to main's shared directories (skills, commands, plugins, agents)
+- Their own `.claude.json` (created by Claude on first login - you'll need to authenticate)
+- Optionally, a symlink to main's settings.json
 
 ## Troubleshooting
 
