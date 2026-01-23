@@ -26,7 +26,7 @@ brew install jq
 ### Quick Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/ccswap/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vvinhas/ccswap/main/scripts/install.sh | bash
 ```
 
 Then add to your shell profile (`~/.zshrc` or `~/.bashrc`):
@@ -43,7 +43,7 @@ source ~/.zshrc  # or source ~/.bashrc
 ### Alternative: Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/ccswap.git
+git clone https://github.com/vvinhas/ccswap.git
 cd ccswap
 ./bin/ccswap init
 ```
