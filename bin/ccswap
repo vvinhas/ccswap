@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.1.2"
+VERSION="0.1.3"
 CCSWAP_DIR="$HOME/.ccswap"
 CONFIG_FILE="$CCSWAP_DIR/config.json"
 
@@ -36,7 +36,7 @@ EOF
 SHARED_DIRS=("skills" "commands" "plugins" "agents")
 
 check_initialized() {
-    if [[ ! -d "$CCSWAP_DIR" ]]; then
+    if [[ ! -d "$CCSWAP_DIR" ]] || [[ ! -f "$CONFIG_FILE" ]]; then
         echo "Error: ccswap not initialized. Run 'ccswap init'."
         exit 1
     fi
@@ -62,9 +62,10 @@ do_init() {
     check_jq
     check_claude_exists
 
-    if [[ -d "$CCSWAP_DIR" ]]; then
-        echo "Error: ~/.ccswap already exists. Remove it first to reinitialize."
-        exit 1
+    # Check if already fully initialized
+    if [[ -f "$CONFIG_FILE" ]] && [[ -L "$CCSWAP_DIR/accounts/main" ]]; then
+        echo "ccswap is already initialized."
+        exit 0
     fi
 
     echo "Initializing ccswap..."
@@ -73,8 +74,10 @@ do_init() {
     mkdir -p "$CCSWAP_DIR/bin"
     mkdir -p "$CCSWAP_DIR/accounts"
 
-    # Create main account as symlink to ~/.claude
-    ln -s "$HOME/.claude" "$CCSWAP_DIR/accounts/main"
+    # Create main account as symlink to ~/.claude (if not already exists)
+    if [[ ! -L "$CCSWAP_DIR/accounts/main" ]]; then
+        ln -s "$HOME/.claude" "$CCSWAP_DIR/accounts/main"
+    fi
 
     # Ensure shared directories exist in ~/.claude
     for dir in "${SHARED_DIRS[@]}"; do

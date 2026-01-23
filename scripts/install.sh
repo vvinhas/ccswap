@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # ccswap installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/vvinhas/ccswap/main/scripts/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/yourusername/ccswap/main/scripts/install.sh | bash
 
-REPO_URL="https://raw.githubusercontent.com/vvinhas/ccswap/main"
+REPO_URL="https://raw.githubusercontent.com/yourusername/ccswap/main"
 INSTALL_DIR="$HOME/.ccswap"
 
 echo "Installing ccswap..."
@@ -15,9 +15,9 @@ if ! command -v jq &> /dev/null; then
     echo "Error: jq is required but not installed."
     echo ""
     echo "Install jq first:"
-    echo "  macOS:         brew install jq"
+    echo "  macOS:        brew install jq"
     echo "  Ubuntu/Debian: sudo apt install jq"
-    echo "  Fedora:        sudo dnf install jq"
+    echo "  Fedora:       sudo dnf install jq"
     echo ""
     exit 1
 fi
@@ -25,13 +25,12 @@ fi
 # Check for claude
 if ! command -v claude &> /dev/null; then
     echo "Warning: Claude Code CLI not found in PATH."
-    echo "Make sure it's installed and run at least once before using ccswap."
+    echo "Make sure it's installed before using ccs."
     echo ""
 fi
 
 # Create directories
 mkdir -p "$INSTALL_DIR/bin"
-mkdir -p "$INSTALL_DIR/accounts"
 
 # Download scripts
 echo "Downloading ccswap..."
@@ -41,6 +40,7 @@ chmod +x "$INSTALL_DIR/bin/ccswap"
 echo "Downloading ccs..."
 curl -fsSL "$REPO_URL/bin/ccs" -o "$INSTALL_DIR/bin/ccs"
 chmod +x "$INSTALL_DIR/bin/ccs"
+
 
 echo ""
 echo "ccswap installed successfully!"
@@ -60,10 +60,7 @@ else
     echo ""
 fi
 
-echo "Next steps:"
+echo "Next step:"
 echo ""
-echo "    ccswap init           # Link ~/.claude as 'main' account"
-echo "    ccswap add work       # Create additional accounts"
-echo "    ccswap use work       # Switch accounts"
-echo "    ccs                   # Launch Claude"
+echo "    ccswap init           # Initialize (links ~/.claude as 'main' account)"
 echo ""
