@@ -166,10 +166,14 @@ do_add() {
 
     mkdir -p "$account_dir"
 
-    # Create symlinks to main's shared dirs
-    for dir in "${SHARED_DIRS[@]}"; do
-        ln -sf "../main/$dir" "$account_dir/$dir"
-    done
+    # Prompt to link shared folders from main
+    read -p "Link shared folders from main account? (skills, commands, plugins, agents) (y/N): " link_shared
+    if [[ "$link_shared" =~ ^[Yy] ]]; then
+        for dir in "${SHARED_DIRS[@]}"; do
+            ln -sf "../main/$dir" "$account_dir/$dir"
+        done
+        echo "Linked shared folders from main account."
+    fi
 
     # Prompt to link settings from main
     read -p "Link settings from main account? (y/N): " link_settings

@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ccswap installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/yourusername/ccswap/main/scripts/install.sh | bash
-
-REPO_URL="https://raw.githubusercontent.com/yourusername/ccswap/main"
+REPO_URL="https://raw.githubusercontent.com/vvinhas/ccswap/main"
 INSTALL_DIR="$HOME/.ccswap"
 
 echo "Installing ccswap..."
