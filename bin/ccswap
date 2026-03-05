@@ -16,6 +16,10 @@ Usage:
     ccswap remove <name>     Remove an account (cannot remove main)
     ccswap use <name>        Switch to an account
     ccswap list              List all accounts
+    ccswap link skill <name>  Link a skill from ~/.agents/skills to account(s)
+        --account=<name>      Target a single account
+        --accounts=<a>,<b>    Target multiple accounts
+        --all                 Target all accounts (except main)
     ccswap --help            Show this help
     ccswap --version         Show version
 
@@ -34,6 +38,7 @@ EOF
 }
 
 SHARED_DIRS=("skills" "commands" "plugins" "agents")
+AGENTS_SKILLS_DIR="$HOME/.agents/skills"
 
 check_initialized() {
     if [[ ! -d "$CCSWAP_DIR" ]] || [[ ! -f "$CONFIG_FILE" ]]; then
@@ -131,6 +136,14 @@ validate_name() {
     local name="$1"
     if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
         echo "Error: Account name must be alphanumeric (dashes and underscores allowed)."
+        exit 1
+    fi
+}
+
+validate_skill_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "Error: Skill name must be alphanumeric (dashes and underscores allowed)."
         exit 1
     fi
 }
@@ -265,6 +278,119 @@ do_switch() {
     echo "Switched to '$name'"
 }
 
+resolve_target_accounts() {
+    local flag_account="${1:-}"
+    local flag_accounts="${2:-}"
+    local flag_all="${3:-}"
+
+    # Check mutual exclusivity
+    local flag_count=0
+    [[ -n "$flag_account" ]] && ((flag_count++)) || true
+    [[ -n "$flag_accounts" ]] && ((flag_count++)) || true
+    [[ "$flag_all" == "true" ]] && ((flag_count++)) || true
+
+    if [[ $flag_count -gt 1 ]]; then
+        echo "Error: --account, --accounts, and --all are mutually exclusive." >&2
+        exit 1
+    fi
+
+    if [[ "$flag_all" == "true" ]]; then
+        local all_accounts
+        all_accounts=$(jq -r '.accounts[]' "$CONFIG_FILE")
+        local targets=()
+        while IFS= read -r acct; do
+            [[ "$acct" != "main" ]] && targets+=("$acct")
+        done <<< "$all_accounts"
+        if [[ ${#targets[@]} -eq 0 ]]; then
+            echo "Warning: No non-main accounts found." >&2
+            exit 0
+        fi
+        printf '%s\n' "${targets[@]}"
+        return
+    fi
+
+    if [[ -n "$flag_account" ]]; then
+        if ! account_exists "$flag_account"; then
+            echo "Error: Account '$flag_account' not found." >&2
+            exit 1
+        fi
+        printf '%s\n' "$flag_account"
+        return
+    fi
+
+    if [[ -n "$flag_accounts" ]]; then
+        IFS=',' read -ra acct_list <<< "$flag_accounts"
+        for acct in "${acct_list[@]}"; do
+            if ! account_exists "$acct"; then
+                echo "Error: Account '$acct' not found." >&2
+                exit 1
+            fi
+        done
+        printf '%s\n' "${acct_list[@]}"
+        return
+    fi
+
+    # Default: active account
+    local active
+    active=$(jq -r '.active // ""' "$CONFIG_FILE")
+    if [[ -z "$active" || "$active" == "null" ]]; then
+        echo "Error: No active account set. Use --account, --accounts, or --all." >&2
+        exit 1
+    fi
+    printf '%s\n' "$active"
+}
+
+do_link_skill() {
+    local skill_name="$1"
+    shift
+    validate_skill_name "$skill_name"
+
+    check_initialized
+    check_jq
+
+    # Validate skill exists in source
+    if [[ ! -d "$AGENTS_SKILLS_DIR/$skill_name" ]]; then
+        echo "Error: Skill '$skill_name' not found in $AGENTS_SKILLS_DIR"
+        exit 1
+    fi
+
+    # Parse flags
+    local flag_account="" flag_accounts="" flag_all="false"
+    for arg in "$@"; do
+        case "$arg" in
+            --account=*) flag_account="${arg#--account=}" ;;
+            --accounts=*) flag_accounts="${arg#--accounts=}" ;;
+            --all) flag_all="true" ;;
+            *)
+                echo "Error: Unknown option '$arg'"
+                echo "Usage: ccswap link skill <name> [--account=<name>|--accounts=<a>,<b>|--all]"
+                exit 1
+                ;;
+        esac
+    done
+
+    # Resolve targets
+    local targets
+    targets=$(resolve_target_accounts "$flag_account" "$flag_accounts" "$flag_all")
+
+    # Link to each target
+    while IFS= read -r account; do
+        [[ -z "$account" ]] && continue
+        local account_dir="$CCSWAP_DIR/accounts/$account"
+        local skill_dir="$account_dir/skills"
+
+        mkdir -p "$skill_dir"
+
+        if [[ -e "$skill_dir/$skill_name" ]] || [[ -L "$skill_dir/$skill_name" ]]; then
+            echo "Warning: Skill '$skill_name' already exists in '$account', skipping."
+            continue
+        fi
+
+        ln -s "$AGENTS_SKILLS_DIR/$skill_name" "$skill_dir/$skill_name"
+        echo "Linked '$skill_name' to '$account'"
+    done <<< "$targets"
+}
+
 # Main argument parsing
 case "${1:-}" in
     --help|-h)
@@ -308,6 +434,19 @@ case "${1:-}" in
             exit 1
         fi
         do_switch "$2"
+        ;;
+    link)
+        if [[ "${2:-}" != "skill" ]]; then
+            echo "Error: Unknown link target '${2:-}'"
+            echo "Usage: ccswap link skill <name> [--account=<name>|--accounts=<a>,<b>|--all]"
+            exit 1
+        fi
+        if [[ -z "${3:-}" ]]; then
+            echo "Error: Skill name required."
+            echo "Usage: ccswap link skill <name> [--account=<name>|--accounts=<a>,<b>|--all]"
+            exit 1
+        fi
+        do_link_skill "${@:3}"
         ;;
     *)
         echo "Error: Unknown command '$1'"
