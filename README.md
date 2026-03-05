@@ -85,6 +85,7 @@ When you first run `ccs` with a new account, Claude will prompt you to authentic
 | `ccswap remove <name>` | Remove an account |
 | `ccswap use <name>` | Switch to an account |
 | `ccswap list` | List all accounts |
+| `ccswap link skill <name>` | Link a skill from `~/.agents/skills` to account(s) |
 | `ccswap --help` | Show help |
 | `ccswap --version` | Show version |
 
@@ -97,6 +98,26 @@ ccs                    # Start Claude Code
 ccs --help             # Pass arguments to claude
 ccs -p "explain this"  # Use with any claude flags
 ```
+
+### Linking Skills
+
+Link skills from `~/.agents/skills/` into account(s):
+
+```bash
+# Link to active account
+ccswap link skill agent-browser
+
+# Link to a specific account
+ccswap link skill agent-browser --account=work
+
+# Link to multiple accounts
+ccswap link skill agent-browser --accounts=work,personal
+
+# Link to all accounts (except main)
+ccswap link skill agent-browser --all
+```
+
+If the skill already exists in the target account, it will be skipped with a warning.
 
 ### Optional: Replace `claude` with `ccs`
 
