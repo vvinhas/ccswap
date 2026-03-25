@@ -38,7 +38,7 @@ EOF
 }
 
 SHARED_DIRS=("skills" "commands" "plugins" "agents")
-AGENTS_SKILLS_DIR="$HOME/.agents/skills"
+MAIN_ACCOUNT_DIR="$CCSWAP_DIR/accounts/main"
 
 check_initialized() {
     if [[ ! -d "$CCSWAP_DIR" ]] || [[ ! -f "$CONFIG_FILE" ]]; then
@@ -68,7 +68,7 @@ do_init() {
     check_claude_exists
 
     # Check if already fully initialized
-    if [[ -f "$CONFIG_FILE" ]] && [[ -L "$CCSWAP_DIR/accounts/main" ]]; then
+    if [[ -f "$CONFIG_FILE" ]] && [[ -L "$MAIN_ACCOUNT_DIR" ]]; then
         echo "ccswap is already initialized."
         exit 0
     fi
@@ -80,8 +80,8 @@ do_init() {
     mkdir -p "$CCSWAP_DIR/accounts"
 
     # Create main account as symlink to ~/.claude (if not already exists)
-    if [[ ! -L "$CCSWAP_DIR/accounts/main" ]]; then
-        ln -s "$HOME/.claude" "$CCSWAP_DIR/accounts/main"
+    if [[ ! -L "$MAIN_ACCOUNT_DIR" ]]; then
+        ln -s "$HOME/.claude" "$MAIN_ACCOUNT_DIR"
     fi
 
     # Ensure shared directories exist in ~/.claude
@@ -349,8 +349,8 @@ do_link_skill() {
     check_jq
 
     # Validate skill exists in source
-    if [[ ! -d "$AGENTS_SKILLS_DIR/$skill_name" ]]; then
-        echo "Error: Skill '$skill_name' not found in $AGENTS_SKILLS_DIR"
+    if [[ ! -d "$MAIN_ACCOUNT_DIR/skills/$skill_name" ]]; then
+        echo "Error: Skill '$skill_name' not found in $MAIN_ACCOUNT_DIR/skills"
         exit 1
     fi
 
@@ -376,6 +376,10 @@ do_link_skill() {
     # Link to each target
     while IFS= read -r account; do
         [[ -z "$account" ]] && continue
+        if [[ "$account" == "main" ]]; then
+            echo "Skipping 'main' (skills are sourced from main)"
+            continue
+        fi
         local account_dir="$CCSWAP_DIR/accounts/$account"
         local skill_dir="$account_dir/skills"
 
@@ -386,7 +390,7 @@ do_link_skill() {
             continue
         fi
 
-        ln -s "$AGENTS_SKILLS_DIR/$skill_name" "$skill_dir/$skill_name"
+        ln -s "$MAIN_ACCOUNT_DIR/skills/$skill_name" "$skill_dir/$skill_name"
         echo "Linked '$skill_name' to '$account'"
     done <<< "$targets"
 }
